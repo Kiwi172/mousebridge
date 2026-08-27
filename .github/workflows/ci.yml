@@ -33,21 +33,39 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            xvfb libx11-6 libxtst6 libxfixes3
+            xvfb x11-utils libx11-6 libxtst6 libxfixes3
+
+      - name: Start Xvfb
+        # Started here rather than wrapping each command in xvfb-run, so every
+        # step shares one server and there is no shell-quoting to get wrong.
+        run: |
+          # Redirect its output: a background process holding the step's
+          # stdout open can stop the step from ever completing.
+          nohup Xvfb :99 -screen 0 1920x1080x24 -nolisten tcp \
+            > /tmp/xvfb.log 2>&1 &
+          for _ in $(seq 1 50); do
+            xdpyinfo -display :99 >/dev/null 2>&1 && break
+            sleep 0.2
+          done
+          xdpyinfo -display :99 >/dev/null || { echo "Xvfb never came up"; exit 1; }
+          echo "DISPLAY=:99" >> "$GITHUB_ENV"
+
+      - name: Check the backend can reach the display
+        run: python -m mb doctor
 
       - name: Check there are no third-party imports
         run: python .github/no_dependencies.py
 
-      - name: Run the test suite under Xvfb
-        run: xvfb-run -a --server-args="-screen 0 1920x1080x24" \
-               python -m unittest discover -s tests -t . -v
+      - name: Run the test suite
+        run: python -m unittest discover -s tests -t . -v
 
-      - name: Confirm the X11 tests actually ran rather than skipping
+      - name: Confirm the X11 tests ran rather than skipping
+        # A skipped live test still reports OK, which would quietly hollow out
+        # this entire job.
         run: |
-          xvfb-run -a --server-args="-screen 0 1920x1080x24" \
-            python -m unittest tests.test_live_x11 -v 2>&1 | tee out.txt
+          python -m unittest tests.test_live_x11 -v 2>&1 | tee out.txt
           grep -q "Ran 3 tests" out.txt
-          if grep -q "skipped" out.txt; then
+          if grep -qi "skipped" out.txt; then
             echo "::error::live X11 tests were skipped; the display was not usable"
             exit 1
           fi
