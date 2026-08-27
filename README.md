@@ -57,6 +57,41 @@ Wherever the instructions below say `mousebridge`, type whichever of those you
 downloaded instead. So `mousebridge doctor` becomes `mousebridge.exe doctor` or
 `./mousebridge.pyz doctor`.
 
+#### Windows will warn you the first time
+
+Windows shows a blue **"Windows protected your PC"** box, and Defender
+SmartScreen calls it an unrecognised app. To run it anyway: click **More info**,
+then **Run anyway**.
+
+That warning is not about anything found in the program. It appears because the
+executable is not signed with a code-signing certificate, which costs a few
+hundred pounds a year from a certificate authority. Every unsigned program gets
+the same message, and it fades once enough people have downloaded a given file
+for SmartScreen to build a reputation for it.
+
+You do not have to take my word for that. The alternatives, in increasing order
+of paranoia:
+
+- Check the download against `SHA256SUMS.txt`, so you know you have the same
+  file the release published.
+- Look at [how it was built](.github/workflows/release.yml). The executable is
+  compiled by GitHub's own Windows runners from the source in this repository,
+  and the build log is public — you can read exactly what went into it.
+- Skip the executable entirely and [run it from source](#from-source). It is a
+  few hundred KB of Python you can read in an afternoon, and it pulls in no
+  third-party packages that might hide something.
+
+A browser may also refuse the download until you tell it to keep the file. Same
+cause, same answer.
+
+Some antivirus engines may flag it for a second reason, and this one is fair:
+mousebridge installs a global keyboard hook and synthesises keystrokes, which is
+a precise description of what a keylogger does. The difference is where the
+keystrokes go — to one machine you own, over a link encrypted with a key only
+you hold, and only while you have pushed the cursor onto that machine. That
+distinction is invisible to a heuristic scanner. If your scanner objects, the
+source is right here to check.
+
 ### From source
 
 ```bash
@@ -266,6 +301,8 @@ and your keyboard.
 | Cursor crosses, then bounces straight back | The two configs disagree about the layout. `mousebridge status` on both and compare. |
 | Clipboard does not sync | Over the 4 MB limit, or it is an image going to Windows. Text always works. |
 | Nothing at all, on Linux | `mousebridge doctor`. Almost always a Wayland session. |
+| Windows says "protected your PC" | The executable is unsigned. **More info → Run anyway**, or see [above](#windows-will-warn-you-the-first-time). |
+| Antivirus quarantines it | It hooks the keyboard, which looks like a keylogger to a heuristic. Same section explains why. |
 
 ---
 
