@@ -1,5 +1,7 @@
 # mousebridge
 
+[![tests](https://github.com/Kiwi172/mousebridge/actions/workflows/ci.yml/badge.svg)](https://github.com/Kiwi172/mousebridge/actions/workflows/ci.yml)
+
 **One keyboard and mouse, two operating systems, and a clipboard that follows
 the cursor.**
 
@@ -196,6 +198,14 @@ node drive this machine's actual cursor and actual clipboard over a real
 encrypted socket, then checks with an independent X client that the clipboard
 really is pasteable. Skipped automatically elsewhere.
 
+CI runs the whole suite on Linux under Xvfb — so the grab, XTEST and clipboard
+paths are genuinely exercised, not skipped — across Python 3.8 through 3.13, and
+on Windows. A separate informational job runs `tests/test_live_win32.py`, which
+drives the runner's real cursor and clipboard. It is allowed to fail without
+breaking the build, because a failure there could equally mean a bug or a
+limitation of the runner's window station, and those look identical from
+outside. Read its log before trusting the Windows backend.
+
 ---
 
 ## Donations
@@ -212,4 +222,4 @@ Monero:
 
 ## Licence
 
-MIT.
+MIT — see [LICENSE](LICENSE).

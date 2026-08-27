@@ -1,0 +1,109 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  linux:
+    # Runs the full suite under a real X server, so the X11 backend -- grabs,
+    # XTEST injection, ICCCM clipboard -- is genuinely exercised rather than
+    # skipped. tests/test_live_x11.py is the part that needs the display.
+    name: linux ${{ matrix.python }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # 3.8 is the floor pyproject.toml claims, and ubuntu-latest no longer
+          # ships it, so that one entry pins an older runner.
+          - { python: "3.8",  runner: ubuntu-22.04 }
+          - { python: "3.9",  runner: ubuntu-latest }
+          - { python: "3.11", runner: ubuntu-latest }
+          - { python: "3.13", runner: ubuntu-latest }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Install X server and libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            xvfb libx11-6 libxtst6 libxfixes3
+
+      - name: Check there are no third-party imports
+        run: python .github/no_dependencies.py
+
+      - name: Run the test suite under Xvfb
+        run: xvfb-run -a --server-args="-screen 0 1920x1080x24" \
+               python -m unittest discover -s tests -t . -v
+
+      - name: Confirm the X11 tests actually ran rather than skipping
+        run: |
+          xvfb-run -a --server-args="-screen 0 1920x1080x24" \
+            python -m unittest tests.test_live_x11 -v 2>&1 | tee out.txt
+          grep -q "Ran 3 tests" out.txt
+          if grep -q "skipped" out.txt; then
+            echo "::error::live X11 tests were skipped; the display was not usable"
+            exit 1
+          fi
+
+  windows:
+    # The platform-independent suite on real Windows: imports, struct layouts,
+    # keycode tables, crypto, and the two-node integration test.
+    name: windows ${{ matrix.python }}
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.9", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Check there are no third-party imports
+        run: python .github/no_dependencies.py
+      - name: Run the test suite
+        run: python -m unittest discover -s tests -t . -v
+
+  windows-hardware:
+    # Informational, and deliberately not allowed to fail the build.
+    #
+    # The Windows input path has never been executed on real hardware. This job
+    # drives the actual cursor and clipboard on the runner. A failure here means
+    # either a genuine bug or a limitation of the runner's window station, and
+    # those two look identical from the outside -- so it reports rather than
+    # gates. Read its log before trusting the Windows backend.
+    name: windows hardware smoke (informational)
+    runs-on: windows-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Drive the real cursor, keyboard and clipboard
+        run: python -m unittest tests.test_live_win32 -v
+
+  package:
+    name: packaging
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Build the wheel and sdist
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build
+      - name: Install the wheel and run the console script
+        run: |
+          python -m pip install dist/*.whl
+          mousebridge --help
+          mousebridge doctor || true   # no display here; must not crash
