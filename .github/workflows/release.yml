@@ -1,0 +1,72 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  pyz:
+    name: single-file (all platforms)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Build mousebridge.pyz
+        run: python tools/build_pyz.py -o dist/mousebridge.pyz
+      - name: Smoke test it
+        run: |
+          python dist/mousebridge.pyz --help
+          ./dist/mousebridge.pyz --help
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mousebridge-pyz
+          path: dist/mousebridge.pyz
+
+  exe:
+    name: windows executable
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Build mousebridge.exe
+        # PyInstaller is a build-time tool only. Nothing it produces adds a
+        # runtime dependency, so the "standard library only" promise holds.
+        run: |
+          python -m pip install --upgrade pip pyinstaller
+          pyinstaller --onefile --console --name mousebridge `
+            --paths . tools/entry.py
+      - name: Smoke test it on real Windows
+        run: |
+          dist\mousebridge.exe --help
+          dist\mousebridge.exe doctor
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mousebridge-exe
+          path: dist/mousebridge.exe
+
+  publish:
+    name: attach to the release
+    needs: [pyz, exe]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/download-artifact@v4
+        with: { path: artifacts }
+      - name: Checksums
+        run: |
+          find artifacts -type f -exec sha256sum {} \; | tee SHA256SUMS.txt
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/mousebridge-pyz/mousebridge.pyz
+            artifacts/mousebridge-exe/mousebridge.exe
+            SHA256SUMS.txt
+          generate_release_notes: true

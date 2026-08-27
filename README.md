@@ -27,49 +27,238 @@ whatever you copied on one machine pastes on the other.
 
 ## Install
 
-**Python 3.8 or newer. Nothing else.** No pip wheels, no compiler, no service
-to register. The X11 and Win32 bindings are hand-written `ctypes`, and the
-cryptography is `hashlib` and a few hundred lines of arithmetic.
+Pick one. The first needs nothing but the ability to download a file.
+
+### The one-file version
+
+Every release ships a single file containing the whole program. There is
+nothing to install, nothing to uninstall, and no folder full of dependencies —
+delete the file and it is gone.
+
+Grab it from the [releases page](https://github.com/Kiwi172/mousebridge/releases):
+
+| You have | Download | Run it with |
+|---|---|---|
+| **Windows** | `mousebridge.exe` | Double-click, or `mousebridge.exe` in a terminal |
+| **Linux** | `mousebridge.pyz` | `chmod +x mousebridge.pyz` then `./mousebridge.pyz` |
+
+`mousebridge.exe` is self-contained — it does not need Python installed.
+`mousebridge.pyz` needs Python 3.8 or newer, which every Linux desktop already
+has.
+
+Wherever the instructions below say `mousebridge`, type whichever of those you
+downloaded instead. So `mousebridge doctor` becomes `mousebridge.exe doctor` or
+`./mousebridge.pyz doctor`.
+
+### From source
 
 ```bash
-pip install -e .          # gives you a `mousebridge` command
+git clone https://github.com/Kiwi172/mousebridge
+cd mousebridge
+python3 -m mb doctor          # runs straight from the source tree
+pip install -e .              # optional; gives you a `mousebridge` command
 ```
 
-Or with no install at all:
+**Python 3.8 or newer, and nothing else.** No pip packages, no compiler, no
+service to register. The X11 and Win32 bindings are hand-written `ctypes`, and
+the cryptography is `hashlib` plus a few hundred lines of arithmetic.
+
+> **Not available as a Docker image, and cannot be.** A container has no way to
+> reach the Windows desktop session — Docker Desktop runs Linux containers in a
+> virtual machine — so it could never install the input hooks or move the
+> Windows cursor. The single file above is the easy path.
+
+### Check it can work at all, before anything else
 
 ```bash
-python3 -m mb doctor
+mousebridge doctor
 ```
 
-On Linux you need X11 (`libX11`, `libXtst`, `libXfixes` — already present on
-any desktop install). On Windows you need nothing.
+```
+platform     linux
+session      x11  DISPLAY=:0  WAYLAND_DISPLAY=-
+backend      x11
+screen       1920 x 1080
+keycodes     evdev (+8)
+
+this machine can capture and inject input.
+```
+
+If the last line says anything else, fix that before going further. The most
+common answer is that you are logged into a Wayland session — see
+[What does not work](#what-does-not-work).
 
 ---
 
 ## Set it up
 
-On the machine you want to type from:
+Two machines, ten minutes. The example is a Linux desktop called `desk` with a
+Windows laptop called `laptop` sitting to its right. Substitute your own names;
+they are just labels, though using each machine's real hostname saves confusion
+later.
+
+### 1. Find the address of each machine
+
+You need the local network address of the **other** machine, which looks like
+`192.168.x.x` or `10.x.x.x`.
+
+```bash
+# Linux
+hostname -I | awk '{print $1}'
+```
+```powershell
+# Windows (PowerShell)
+(Get-NetIPAddress -AddressFamily IPv4 |
+  Where-Object { $_.InterfaceAlias -notmatch 'Loopback' }).IPAddress
+```
+
+Write both down. If the two machines are on different subnets, or one is on
+Wi-Fi and the other on a guest network, they will not find each other.
+
+### 2. Set up the first machine
+
+On the Linux desktop:
 
 ```bash
 mousebridge init --peer laptop=192.168.1.42 --side right
 ```
 
-That writes `~/.config/mousebridge/config.json`, generates a shared secret in
-a `0600` file next to it, and records that `laptop` sits to the right.
+`--side right` means *the laptop sits to the right of this machine*. Use
+`left`, `up` or `down` to match how the screens actually sit on your desk —
+getting this wrong is the single most common setup mistake, and the symptom is
+a cursor that refuses to cross.
 
-Then:
+That writes two files:
+
+```
+~/.config/mousebridge/config.json     the layout — safe to copy anywhere
+~/.config/mousebridge/secret          the shared key — mode 600, keep it
+```
+
+### 3. Set up the second machine
 
 ```bash
 mousebridge pair
 ```
 
-which prints the exact config and secret to paste on the other machine. Run
-`mousebridge run` on both. That is the whole setup.
+This prints, ready to paste, the exact config for the other machine and the
+secret to go with it — in both a Linux/macOS form and a Windows PowerShell
+form. Copy the block for whichever the other machine runs, paste it there,
+done. You never have to write a config file by hand.
+
+The secret is what stops anything else on your network from typing on your
+computers. Carry it across on a USB stick, a password manager, or by reading it
+aloud — not through a group chat.
+
+### 4. Start both
+
+Run this on each machine:
 
 ```bash
-mousebridge status      # who is configured, who is reachable
-mousebridge doctor      # can this machine capture and inject at all?
+mousebridge run
 ```
+
+You should see, within a few seconds:
+
+```
+[14:22:01] desk up: 1920x1080, cluster 'default'
+[14:22:01] layout: desk -> right: laptop
+[14:22:03] connected to 192.168.1.42: laptop
+[14:22:03] laptop: 2560x1440
+```
+
+That last line is the one that matters — it means the handshake succeeded and
+both machines agree on each other's screen size. Now push your mouse off the
+right-hand edge of the Linux screen.
+
+### 5. Check it before trusting it
+
+```bash
+mousebridge status
+```
+
+shows the layout, every peer, and whether each one is actually answering.
+
+---
+
+## Using it
+
+| To do this | Do this |
+|---|---|
+| Move to the next screen | Push the cursor off that edge |
+| Jump to a screen directly | `ctrl+alt+←` `→` `↑` `↓` |
+| Yank the cursor back to the machine in front of you | `ctrl+alt+home` |
+| Copy between machines | Just copy — it syncs by itself |
+| Take over with a different machine's mouse | Pick that mouse up and move it |
+
+Hotkeys are configurable under `"hotkeys"` in `config.json`.
+
+### Keep it running
+
+**Linux (systemd user service).** Runs when you log in, restarts if it dies:
+
+```bash
+mkdir -p ~/.config/systemd/user
+cat > ~/.config/systemd/user/mousebridge.service <<'EOF'
+[Unit]
+Description=mousebridge
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+ExecStart=%h/.local/bin/mousebridge run
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target
+EOF
+systemctl --user daemon-reload
+systemctl --user enable --now mousebridge
+journalctl --user -u mousebridge -f      # watch it
+```
+
+Adjust `ExecStart` to wherever your copy lives — `%h/mousebridge.pyz run` if
+you downloaded the single file.
+
+**Windows (start at login).** Press `Win+R`, type `shell:startup`, and put a
+shortcut to `mousebridge.exe run` in the folder that opens.
+
+Do not run it as Administrator unless you need to control programs that are
+themselves elevated. Windows blocks input injection from a lower integrity
+level into a higher one, so if the far machine ignores your typing only inside
+one particular app, that is why.
+
+### Let it through the firewall
+
+mousebridge listens on TCP **24800**. Both machines need to accept connections
+from the other.
+
+```bash
+# Linux, ufw
+sudo ufw allow from 192.168.1.0/24 to any port 24800 proto tcp
+```
+```powershell
+# Windows, PowerShell as Administrator
+New-NetFirewallRule -DisplayName "mousebridge" -Direction Inbound `
+  -Protocol TCP -LocalPort 24800 -Action Allow -Profile Private
+```
+
+Restrict it to your local subnet, as both examples do. There is no reason to
+expose it to the internet, and the secret is the only thing between a stranger
+and your keyboard.
+
+### When it does not work
+
+| Symptom | Cause |
+|---|---|
+| `peers: laptop ... unreachable` | Firewall, wrong address, or the other machine is not running yet. `mousebridge status` on both. |
+| `handshake failed` / `peer failed to prove the shared secret` | The two machines have different secrets. Re-run `mousebridge pair` and paste it again. |
+| `rejected 'x' ...: not in this node's peer list` | The names in the two configs disagree. They must match exactly. |
+| Cursor will not cross an edge | Wrong `--side`, or you are aiming at a corner — the outer 40px of each edge deliberately will not switch, so corner buttons stay reachable. Aim at the middle of the edge. |
+| Cursor crosses, then bounces straight back | The two configs disagree about the layout. `mousebridge status` on both and compare. |
+| Clipboard does not sync | Over the 4 MB limit, or it is an image going to Windows. Text always works. |
+| Nothing at all, on Linux | `mousebridge doctor`. Almost always a Wayland session. |
 
 ---
 
