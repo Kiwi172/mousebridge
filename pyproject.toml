@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mousebridge"
+version = "0.1.0"
+description = "Share one mouse, keyboard and clipboard across Linux and Windows machines"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+dependencies = []
+classifiers = [
+  "Environment :: X11 Applications",
+  "Environment :: Win32 (MS Windows)",
+  "Operating System :: Microsoft :: Windows",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+  "Topic :: Desktop Environment",
+]
+
+[project.scripts]
+mousebridge = "mb.cli:main"
+
+[tool.setuptools]
+packages = ["mb", "mb.backend"]
