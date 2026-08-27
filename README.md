@@ -198,6 +198,18 @@ really is pasteable. Skipped automatically elsewhere.
 
 ---
 
+## Donations
+
+Entirely optional, and nothing in mousebridge behaves differently either way.
+
+Monero:
+
+```
+8ACg45xXbJDMn68kJZzofM8JcUzbtasRXed45SnKXpfdXFSay19GSYd4kngj6ex6uqFBmxE3d81JtD3qpPq9ydzBDHbETXf
+```
+
+---
+
 ## Licence
 
 MIT.
