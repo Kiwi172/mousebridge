@@ -134,12 +134,13 @@ Stated plainly, because the gap between this and Mouse Without Borders is real:
   one application capture global input or synthesise it into another, which is
   exactly what this program is. Use an Xorg session. `mousebridge doctor` will
   tell you which one you are in.
-- **The Windows side is written but unverified by me.** The hooks, `SendInput`
-  calls and struct layouts are correct by construction — every structure is
-  asserted against its documented Windows x64 size, and every canonical keycode
-  round-trips through the Windows representation in the test suite — but I have
-  no Windows machine here and have not watched it move a real cursor. Treat the
-  first run as a test.
+- **The Windows side has never driven a second machine.** CI does run it on
+  real Windows, where `SendInput` moves the actual cursor, both low-level hooks
+  install, and the clipboard round-trips — so the parts that were pure
+  guesswork are now measured. What no test covers is the thing you actually
+  want: two physical machines, one capturing while a person types on it. The
+  capture path in particular is only exercised by its structure, never by a
+  real hand on a real keyboard. Treat your first two-machine run as the test.
 - **Clipboard images stop at Windows.** PNG moves between Linux machines. The
   Windows clipboard wants DIB, and converting would mean an image decoder,
   which would mean a dependency. Text works everywhere.
