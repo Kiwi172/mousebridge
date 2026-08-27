@@ -46,6 +46,13 @@ Grab it from the [releases page](https://github.com/Kiwi172/mousebridge/releases
 `mousebridge.pyz` needs Python 3.8 or newer, which every Linux desktop already
 has.
 
+Each release also carries `SHA256SUMS.txt`, if you want to check the download
+arrived intact:
+
+```bash
+sha256sum -c SHA256SUMS.txt
+```
+
 Wherever the instructions below say `mousebridge`, type whichever of those you
 downloaded instead. So `mousebridge doctor` becomes `mousebridge.exe doctor` or
 `./mousebridge.pyz doctor`.

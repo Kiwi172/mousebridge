@@ -61,12 +61,16 @@ jobs:
       - uses: actions/download-artifact@v4
         with: { path: artifacts }
       - name: Checksums
+        # Flatten first, so the manifest lists bare filenames and
+        # `sha256sum -c SHA256SUMS.txt` works next to the downloaded files.
         run: |
-          find artifacts -type f -exec sha256sum {} \; | tee SHA256SUMS.txt
+          mkdir -p release
+          find artifacts -type f -exec mv {} release/ \;
+          cd release && sha256sum * | tee ../SHA256SUMS.txt
       - uses: softprops/action-gh-release@v2
         with:
           files: |
-            artifacts/mousebridge-pyz/mousebridge.pyz
-            artifacts/mousebridge-exe/mousebridge.exe
+            release/mousebridge.pyz
+            release/mousebridge.exe
             SHA256SUMS.txt
           generate_release_notes: true
